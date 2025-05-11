@@ -12,13 +12,24 @@ import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -30,10 +41,13 @@ import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
 import id.hocky.miteiru.utils.ChineseTextBox
 import id.hocky.miteiru.utils.ImageTextAnalyzer
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 @Composable
 fun CameraView(modifier: Modifier = Modifier) {
@@ -41,6 +55,14 @@ fun CameraView(modifier: Modifier = Modifier) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
+    val coroutineScope = rememberCoroutineScope()
+
+    // Store a reference to the camera
+    var camera by remember { mutableStateOf<Camera?>(null) }
+
+    // Focus indicator state
+    var focusPoint by remember { mutableStateOf<Offset?>(null) }
+
     // Create a PreviewView with FIT_CENTER scale type
     val previewView = remember {
         PreviewView(context).apply {
@@ -66,6 +88,34 @@ fun CameraView(modifier: Modifier = Modifier) {
     var capturedTextBoxes by remember { mutableStateOf<List<ChineseTextBox>>(emptyList()) }
     var capturedImageWidth by remember { mutableStateOf(0) }
     var capturedImageHeight by remember { mutableStateOf(0) }
+
+    // Function to handle tap to focus
+    fun onTapToFocus(x: Float, y: Float) {
+        camera?.let { cam ->
+            // Create a factory for metering points
+            val factory = previewView.meteringPointFactory
+
+            // Create a metering point from the tap coordinates
+            val point = factory.createPoint(x, y)
+
+            // Create a metering action
+            val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF)
+                .setAutoCancelDuration(3, TimeUnit.SECONDS)
+                .build()
+
+            // Execute the action
+            cam.cameraControl.startFocusAndMetering(action)
+
+            // Show focus indicator
+            focusPoint = Offset(x, y)
+
+            // Hide focus indicator after 1 second
+            coroutineScope.launch {
+                delay(1000)
+                focusPoint = null
+            }
+        }
+    }
 
     // Get screen dimensions
     val configuration = LocalConfiguration.current
@@ -106,7 +156,7 @@ fun CameraView(modifier: Modifier = Modifier) {
 
             try {
                 cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(
+                camera = cameraProvider.bindToLifecycle(
                     lifecycleOwner,
                     cameraSelector,
                     preview,
@@ -152,11 +202,32 @@ fun CameraView(modifier: Modifier = Modifier) {
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-        // Always show camera preview
+        // Always show camera preview with tap-to-focus
         AndroidView(
             factory = { previewView },
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectTapGestures { offset ->
+                        if (!isCaptureMode) {
+                            onTapToFocus(offset.x, offset.y)
+                        }
+                    }
+                }
         )
+
+        // Show focus indicator when tapped
+        focusPoint?.let { point ->
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .offset(
+                        x = with(LocalDensity.current) { (point.x - 40.dp.toPx()).toDp() },
+                        y = with(LocalDensity.current) { (point.y - 40.dp.toPx()).toDp() }
+                    )
+                    .border(2.dp, Color.Yellow, CircleShape)
+            )
+        }
 
         if (isCaptureMode && capturedBitmap != null) {
             // Show the captured image
@@ -171,7 +242,7 @@ fun CameraView(modifier: Modifier = Modifier) {
 
             // Show text boxes on frozen screen
             capturedTextBoxes.forEach { textBox ->
-                TextRecognitionBox(
+                TextRecognitionWithPopup(
                     textBox = textBox,
                     imageWidth = capturedImageWidth,
                     imageHeight = capturedImageHeight,
