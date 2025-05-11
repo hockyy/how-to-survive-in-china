@@ -30,13 +30,15 @@ fun TextBoxPopUp(
     var croppedBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
     // State for selected pronunciation type
-    var pronunciationType by remember { mutableStateOf(
-        when (textBox.language) {
-            "zh" -> MiteiruProcess.MANDARIN
-            "ja" -> MiteiruProcess.JAPANESE
-            else -> MiteiruProcess.MANDARIN
-        }
-    )}
+    var pronunciationType by remember {
+        mutableStateOf(
+            when (textBox.language) {
+                "zh" -> MiteiruProcess.MANDARIN
+                "ja" -> MiteiruProcess.JAPANESE
+                else -> MiteiruProcess.MANDARIN
+            }
+        )
+    }
 
     // Load and crop bitmap when component is created
     LaunchedEffect(textBox) {
@@ -90,7 +92,9 @@ fun TextBoxPopUp(
                 if (textBox.language == "zh") {
                     LanguageSelector(
                         selectedLanguage = pronunciationType,
-                        onLanguageSelected = { pronunciationType = it }
+                        onLanguageSelected = { pronunciationType = it },
+                        text = textBox.text,
+                        context = context
                     )
                 }
 
@@ -108,7 +112,8 @@ fun TextBoxPopUp(
                 CopyButton(
                     onCopy = {
                         copyToClipboard(context, textBox.text)
-                        Toast.makeText(context, "Text copied to clipboard", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Text copied to clipboard", Toast.LENGTH_SHORT)
+                            .show()
                         onDismiss()
                     }
                 )
