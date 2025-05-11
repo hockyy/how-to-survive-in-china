@@ -55,13 +55,10 @@ fun LanguageSelector(
                         Toast.LENGTH_SHORT
                     ).show()
                 }
-
-                // Optionally still set the language if needed
-                onLanguageSelected(MiteiruProcess.CANTONESE)
             },
             modifier = Modifier.padding(horizontal = 4.dp),
             colors = ButtonDefaults.outlinedButtonColors(
-                containerColor = if (selectedLanguage == MiteiruProcess.CANTONESE)
+                containerColor = if (selectedLanguage == MiteiruProcess.CHINESE)
                     Color(0xFFE0E0E0) else Color.Transparent
             )
         ) {
@@ -96,12 +93,10 @@ fun LanguageSelector(
                     ).show()
                 }
 
-                // Optionally still set the language if needed
-                onLanguageSelected(MiteiruProcess.CANTONESE)
             },
             modifier = Modifier.padding(horizontal = 4.dp),
             colors = ButtonDefaults.outlinedButtonColors(
-                containerColor = if (selectedLanguage == MiteiruProcess.CANTONESE)
+                containerColor = if (selectedLanguage == MiteiruProcess.CHINESE)
                     Color(0xFFE0E0E0) else Color.Transparent
             )
         ) {

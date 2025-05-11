@@ -6,7 +6,8 @@ import id.hocky.miteiru.utils.PronunciationInfo
 enum class MiteiruProcess {
     MANDARIN,
     CANTONESE,
-    JAPANESE
+    JAPANESE,
+    CHINESE
 }
 // Interface for pronunciation processors
 interface PronunciationProcessor {
