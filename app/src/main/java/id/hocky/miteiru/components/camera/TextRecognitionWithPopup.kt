@@ -1,6 +1,7 @@
-package id.hocky.miteiru.components
+package id.hocky.miteiru.components.camera
 
 import androidx.compose.runtime.*
+import id.hocky.miteiru.components.textBoxPopUp.TextBoxPopUp
 import id.hocky.miteiru.utils.ChineseTextBox
 
 
@@ -27,7 +28,7 @@ fun TextRecognitionWithPopup(
 
     // Show popup when clicked
     if (showPopup) {
-        TextBoxPopup(
+        TextBoxPopUp(
             textBox = textBox,
             onDismiss = { showPopup = false }
         )

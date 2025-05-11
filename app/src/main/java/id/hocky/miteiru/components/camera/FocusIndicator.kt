@@ -1,4 +1,4 @@
-package id.hocky.miteiru.components
+package id.hocky.miteiru.components.camera
 
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box

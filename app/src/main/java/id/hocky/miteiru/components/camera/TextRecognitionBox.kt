@@ -1,4 +1,4 @@
-package id.hocky.miteiru.components
+package id.hocky.miteiru.components.camera
 
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,10 +15,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import id.hocky.miteiru.utils.ChineseTextBox
 import android.graphics.Rect
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.drawscope.DrawStyle
 import androidx.compose.ui.unit.Dp
 
 @Composable

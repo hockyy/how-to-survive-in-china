@@ -1,8 +1,7 @@
-package id.hocky.miteiru.screens
+package id.hocky.miteiru.components.camera
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import id.hocky.miteiru.components.CameraView
 
 @Composable
 fun CameraScreen(modifier: Modifier = Modifier) {

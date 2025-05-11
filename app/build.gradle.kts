@@ -51,7 +51,8 @@ dependencies {
     implementation(libs.text.recognition)
     implementation(libs.text.recognition.chinese)
 
-    // TinyPinyin for Chinese to Pinyin conversion
+    implementation(libs.pinyin4j)
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)

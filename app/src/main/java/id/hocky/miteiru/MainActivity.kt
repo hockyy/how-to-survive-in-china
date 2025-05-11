@@ -13,7 +13,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import id.hocky.miteiru.ui.theme.MiteiruTheme
-import id.hocky.miteiru.screens.CameraScreen
+import id.hocky.miteiru.components.camera.CameraScreen
 
 class MainActivity : ComponentActivity() {
     private val requestPermissionLauncher = registerForActivityResult(

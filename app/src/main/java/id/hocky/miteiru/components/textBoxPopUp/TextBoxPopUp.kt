@@ -1,47 +1,48 @@
-package id.hocky.miteiru.components
+package id.hocky.miteiru.components.textBoxPopUp
 
 import android.graphics.Bitmap
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import copyToClipboard
 import cropBitmapByRect
-import id.hocky.miteiru.utils.ChineseTextBox
-import id.hocky.miteiru.utils.loadBitmapFromUri
+import copyToClipboard
+import id.hocky.miteiru.utils.*
+import id.hocky.miteiru.utils.language.MiteiruProcess
 
 @Composable
-fun TextBoxPopup(
+fun TextBoxPopUp(
     textBox: ChineseTextBox,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
     var croppedBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
+    // State for selected pronunciation type
+    var pronunciationType by remember { mutableStateOf(
+        when (textBox.language) {
+            "zh" -> MiteiruProcess.MANDARIN
+            "ja" -> MiteiruProcess.JAPANESE
+            else -> MiteiruProcess.MANDARIN
+        }
+    )}
+
     // Load and crop bitmap when component is created
     LaunchedEffect(textBox) {
         textBox.imageUri?.let { uri ->
             try {
-                // Load the full bitmap
                 val fullBitmap = loadBitmapFromUri(context, uri)
-
-                // Crop it based on the bounding box
                 croppedBitmap = cropBitmapByRect(fullBitmap, textBox.boundingBox, 20)
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -77,47 +78,40 @@ fun TextBoxPopup(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(150.dp)
-                            .padding(bottom = 16.dp),
+                            .padding(bottom = 8.dp),
                         contentScale = ContentScale.Fit
                     )
                 }
 
-                // The rest of your popup content remains the same
-                Text(
+                // Original text
+                TextContent(textBox.text)
+
+                // Language selection for Chinese
+                if (textBox.language == "zh") {
+                    LanguageSelector(
+                        selectedLanguage = pronunciationType,
+                        onLanguageSelected = { pronunciationType = it }
+                    )
+                }
+
+                // Pronunciation display based on language
+                PronunciationDisplay(
                     text = textBox.text,
-                    fontSize = 18.sp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 16.dp),
-                    textAlign = TextAlign.Center
+                    language = textBox.language,
+                    pronunciationType = pronunciationType
                 )
 
                 // Language indicator
-                val languageText = when(textBox.language) {
-                    "zh" -> "Chinese"
-                    "ja" -> "Japanese"
-                    "ko" -> "Korean"
-                    else -> "Unknown"
-                }
-
-                Text(
-                    text = "Language: $languageText",
-                    fontSize = 14.sp,
-                    color = Color.Gray,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
+                LanguageIndicator(language = textBox.language)
 
                 // Copy button
-                Button(
-                    onClick = {
+                CopyButton(
+                    onCopy = {
                         copyToClipboard(context, textBox.text)
                         Toast.makeText(context, "Text copied to clipboard", Toast.LENGTH_SHORT).show()
                         onDismiss()
-                    },
-                    modifier = Modifier.fillMaxWidth(0.8f)
-                ) {
-                    Text("Copy Text")
-                }
+                    }
+                )
 
                 Spacer(modifier = Modifier.height(8.dp))
             }

@@ -1,4 +1,4 @@
-package id.hocky.miteiru.components
+package id.hocky.miteiru.components.camera
 
 import android.graphics.Bitmap
 import android.net.Uri
