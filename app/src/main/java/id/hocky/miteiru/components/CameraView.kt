@@ -1,53 +1,40 @@
 package id.hocky.miteiru.components
 
-import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.ImageDecoder
 import android.net.Uri
-import android.os.Build
-import android.os.Environment
-import android.provider.MediaStore
 import android.widget.Toast
-import androidx.camera.core.*
+import androidx.camera.core.Camera
 import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
-import androidx.core.content.ContextCompat
 import id.hocky.miteiru.utils.ChineseTextBox
 import id.hocky.miteiru.utils.ImageTextAnalyzer
+import id.hocky.miteiru.utils.createImageCapture
+import id.hocky.miteiru.utils.createPreviewView
+import id.hocky.miteiru.utils.handleTapToFocus
+import id.hocky.miteiru.utils.initializeCamera
+import id.hocky.miteiru.utils.loadBitmapFromUri
+import id.hocky.miteiru.utils.takePhoto
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.io.File
-import java.text.SimpleDateFormat
-import java.util.*
 import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 
 @Composable
 fun CameraView(modifier: Modifier = Modifier) {
@@ -64,58 +51,18 @@ fun CameraView(modifier: Modifier = Modifier) {
     var focusPoint by remember { mutableStateOf<Offset?>(null) }
 
     // Create a PreviewView with FIT_CENTER scale type
-    val previewView = remember {
-        PreviewView(context).apply {
-            // This makes the preview fit within bounds like ContentScale.Fit
-            scaleType = PreviewView.ScaleType.FIT_CENTER
-
-            // Optional: Set the background color to be visible in letterboxed areas
-            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-        }
-    }
+    val previewView = remember { createPreviewView(context) }
 
     // Create a properly configured ImageCapture
-    val imageCapture = remember {
-        ImageCapture.Builder()
-            .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
-            .build()
-    }
+    val imageCapture = remember { createImageCapture() }
 
     // States for capture mode
     var isCaptureMode by remember { mutableStateOf(false) }
     var capturedImageUri by remember { mutableStateOf<Uri?>(null) }
     var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var capturedTextBoxes by remember { mutableStateOf<List<ChineseTextBox>>(emptyList()) }
-    var capturedImageWidth by remember { mutableStateOf(0) }
-    var capturedImageHeight by remember { mutableStateOf(0) }
-
-    // Function to handle tap to focus
-    fun onTapToFocus(x: Float, y: Float) {
-        camera?.let { cam ->
-            // Create a factory for metering points
-            val factory = previewView.meteringPointFactory
-
-            // Create a metering point from the tap coordinates
-            val point = factory.createPoint(x, y)
-
-            // Create a metering action
-            val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF)
-                .setAutoCancelDuration(3, TimeUnit.SECONDS)
-                .build()
-
-            // Execute the action
-            cam.cameraControl.startFocusAndMetering(action)
-
-            // Show focus indicator
-            focusPoint = Offset(x, y)
-
-            // Hide focus indicator after 1 second
-            coroutineScope.launch {
-                delay(1000)
-                focusPoint = null
-            }
-        }
-    }
+    var capturedImageWidth by remember { mutableIntStateOf(0) }
+    var capturedImageHeight by remember { mutableIntStateOf(0) }
 
     // Get screen dimensions
     val configuration = LocalConfiguration.current
@@ -129,14 +76,7 @@ fun CameraView(modifier: Modifier = Modifier) {
     LaunchedEffect(capturedImageUri) {
         capturedImageUri?.let { uri ->
             try {
-                val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    val source = ImageDecoder.createSource(context.contentResolver, uri)
-                    ImageDecoder.decodeBitmap(source)
-                } else {
-                    @Suppress("DEPRECATION")
-                    MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
-                }
-                capturedBitmap = bitmap
+                capturedBitmap = loadBitmapFromUri(context, uri)
             } catch (e: Exception) {
                 e.printStackTrace()
                 Toast.makeText(context, "Failed to load image", Toast.LENGTH_SHORT).show()
@@ -144,61 +84,17 @@ fun CameraView(modifier: Modifier = Modifier) {
         }
     }
 
+    // Initialize camera when view is created
     LaunchedEffect(previewView) {
-        cameraProviderFuture.addListener({
-            val cameraProvider = cameraProviderFuture.get()
-
-            val preview = Preview.Builder().build().also {
-                it.setSurfaceProvider(previewView.surfaceProvider)
-            }
-
-            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
-            try {
-                cameraProvider.unbindAll()
-                camera = cameraProvider.bindToLifecycle(
-                    lifecycleOwner,
-                    cameraSelector,
-                    preview,
-                    imageCapture
-                )
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }, ContextCompat.getMainExecutor(context))
-    }
-
-    // Function to capture photo
-    fun takePhoto() {
-        // Create output file
-        val photoFile = createImageFile(context)
-        val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
-
-        imageCapture.takePicture(
-            outputOptions,
-            cameraExecutor,
-            object : ImageCapture.OnImageSavedCallback {
-                override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
-                    val savedUri = Uri.fromFile(photoFile)
-                    capturedImageUri = savedUri
-
-                    // Process image for text recognition
-                    textAnalyzer.analyzeImage(savedUri) { fullText, textBoxes, width, height ->
-                        capturedTextBoxes = textBoxes
-                        capturedImageWidth = width
-                        capturedImageHeight = height
-                        isCaptureMode = true
-                    }
-                }
-
-                override fun onError(exception: ImageCaptureException) {
-                    Toast.makeText(
-                        context, "Capture failed: ${exception.message}",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            }
-        )
+        initializeCamera(
+            cameraProviderFuture,
+            lifecycleOwner,
+            previewView,
+            imageCapture,
+            context
+        ) { boundCamera ->
+            camera = boundCamera
+        }
     }
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -210,7 +106,19 @@ fun CameraView(modifier: Modifier = Modifier) {
                 .pointerInput(Unit) {
                     detectTapGestures { offset ->
                         if (!isCaptureMode) {
-                            onTapToFocus(offset.x, offset.y)
+                            handleTapToFocus(
+                                camera,
+                                previewView,
+                                offset.x,
+                                offset.y
+                            ) { newFocusPoint ->
+                                focusPoint = newFocusPoint
+                                // Hide focus indicator after delay
+                                coroutineScope.launch {
+                                    delay(1000)
+                                    focusPoint = null
+                                }
+                            }
                         }
                     }
                 }
@@ -218,15 +126,7 @@ fun CameraView(modifier: Modifier = Modifier) {
 
         // Show focus indicator when tapped
         focusPoint?.let { point ->
-            Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .offset(
-                        x = with(LocalDensity.current) { (point.x - 40.dp.toPx()).toDp() },
-                        y = with(LocalDensity.current) { (point.y - 40.dp.toPx()).toDp() }
-                    )
-                    .border(2.dp, Color.Yellow, CircleShape)
-            )
+            FocusIndicator(point)
         }
 
         if (isCaptureMode && capturedBitmap != null) {
@@ -269,7 +169,26 @@ fun CameraView(modifier: Modifier = Modifier) {
         } else {
             // Capture button
             Button(
-                onClick = { takePhoto() },
+                onClick = {
+                    takePhoto(
+                        context,
+                        imageCapture,
+                        cameraExecutor,
+                        onImageCaptured = { uri ->
+                            capturedImageUri = uri
+                            // Process image for text recognition
+                            textAnalyzer.analyzeImage(uri) { fullText, textBoxes, width, height ->
+                                capturedTextBoxes = textBoxes
+                                capturedImageWidth = width
+                                capturedImageHeight = height
+                                isCaptureMode = true
+                            }
+                        },
+                        onError = { message ->
+                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(16.dp)
@@ -278,12 +197,4 @@ fun CameraView(modifier: Modifier = Modifier) {
             }
         }
     }
-}
-
-// Helper function to create a unique file for storing the image
-private fun createImageFile(context: Context): File {
-    val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-    val imageFileName = "JPEG_${timeStamp}_"
-    val storageDir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
-    return File.createTempFile(imageFileName, ".jpg", storageDir)
 }

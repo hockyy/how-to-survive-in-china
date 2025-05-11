@@ -53,7 +53,8 @@ class ImageTextAnalyzer(private val context: Context) {
                                 text = block.text,
                                 rotation = 0, // File-based InputImage handles rotation automatically
                                 language = language,
-                                confidence = 0f
+                                confidence = 0f,
+                                imageUri = imageUri
                             )
 
                             textBoxes.add(textBox)

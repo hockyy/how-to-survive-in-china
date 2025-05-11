@@ -1,6 +1,7 @@
 package id.hocky.miteiru.utils
 
 import android.graphics.Rect
+import android.net.Uri
 
 /**
  * A data class that contains information about a detected text box including:
@@ -16,7 +17,8 @@ data class ChineseTextBox(
     val rotation: Int,            // The rotation of the image (0, 90, 180, 270)
     val language: String = "",    // Language code (e.g. "zh", "en", "ja")
     val confidence: Float = 0f,   // Confidence score of recognition
-    val metadata: Map<String, Any> = emptyMap() // For future extensions
+    val imageUri: Uri? = null,     // The URI of the original image
+    val metadata: Map<String, Any> = emptyMap(), // For future extensions
 ) {
     // Additional helper methods
     fun width(): Int = boundingBox.width()
