@@ -1,10 +1,6 @@
 package id.hocky.miteiru.components
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.Rect
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
@@ -25,36 +21,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import copyToClipboard
 import cropBitmapByRect
 import id.hocky.miteiru.utils.ChineseTextBox
 import id.hocky.miteiru.utils.loadBitmapFromUri
 
-
-private fun copyToClipboard(context: Context, text: String) {
-    val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    val clipData = ClipData.newPlainText("Text", text)
-    clipboardManager.setPrimaryClip(clipData)
-}
-
-// In a suitable utils file, e.g., ImageUtils.kt
-fun cropBitmapByRect(bitmap: Bitmap, rect: Rect): Bitmap {
-    // Ensure we don't crop outside the image bounds
-    val safeRect = Rect(
-        kotlin.math.max(0, rect.left),
-        kotlin.math.max(0, rect.top),
-        kotlin.math.min(bitmap.width, rect.right),
-        kotlin.math.min(bitmap.height, rect.bottom)
-    )
-
-    // Return a cropped bitmap
-    return Bitmap.createBitmap(
-        bitmap,
-        safeRect.left,
-        safeRect.top,
-        safeRect.width(),
-        safeRect.height()
-    )
-}
 @Composable
 fun TextBoxPopup(
     textBox: ChineseTextBox,

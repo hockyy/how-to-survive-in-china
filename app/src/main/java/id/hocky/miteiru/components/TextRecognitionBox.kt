@@ -15,6 +15,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import id.hocky.miteiru.utils.ChineseTextBox
 import android.graphics.Rect
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.DrawStyle
 import androidx.compose.ui.unit.Dp
 
 @Composable
@@ -47,13 +51,12 @@ fun TextRecognitionBox(
             else -> Color.White
         }
     }
-
-    // Draw box with clickable
+// Draw box with clickable and white shadow
     Box(
         modifier = Modifier
             .size(width = widthDp, height = heightDp)
             .offset(x = leftDp, y = topDp)
-            .border(2.dp, boxColor, RoundedCornerShape(4.dp))
+            .border(1.dp, boxColor, RoundedCornerShape(4.dp))
             .clickable { onClick(textBox) }
             .zIndex(3f)
     )
