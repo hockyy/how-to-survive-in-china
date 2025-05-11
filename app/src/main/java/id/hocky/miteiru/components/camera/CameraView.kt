@@ -5,25 +5,18 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.camera.core.Camera
 import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Button
-import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.zIndex
 import id.hocky.miteiru.utils.ChineseTextBox
 import id.hocky.miteiru.utils.ImageTextAnalyzer
 import id.hocky.miteiru.utils.createImageCapture
@@ -31,7 +24,6 @@ import id.hocky.miteiru.utils.createPreviewView
 import id.hocky.miteiru.utils.handleTapToFocus
 import id.hocky.miteiru.utils.initializeCamera
 import id.hocky.miteiru.utils.loadBitmapFromUri
-import id.hocky.miteiru.utils.takePhoto
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.Executors
@@ -71,6 +63,19 @@ fun CameraView(modifier: Modifier = Modifier) {
 
     // Helper for processing the captured image
     val textAnalyzer = remember { ImageTextAnalyzer(context) }
+
+    // Image picker
+    val imagePickerLauncher = setupImagePicker(
+        onImageSelected = { uri ->
+            capturedImageUri = uri
+            processImage(uri, textAnalyzer) { textBoxes, width, height ->
+                capturedTextBoxes = textBoxes
+                capturedImageWidth = width
+                capturedImageHeight = height
+                isCaptureMode = true
+            }
+        }
+    )
 
     // Load bitmap when URI changes
     LaunchedEffect(capturedImageUri) {
@@ -130,71 +135,45 @@ fun CameraView(modifier: Modifier = Modifier) {
         }
 
         if (isCaptureMode && capturedBitmap != null) {
-            // Show the captured image
-            Image(
-                bitmap = capturedBitmap!!.asImageBitmap(),
-                contentDescription = "Captured image",
-                modifier = Modifier
-                    .fillMaxSize()
-                    .zIndex(1f),
-                contentScale = ContentScale.Fit
-            )
-
-            // Show text boxes on frozen screen
-            capturedTextBoxes.forEach { textBox ->
-                TextRecognitionWithPopup(
-                    textBox = textBox,
-                    imageWidth = capturedImageWidth,
-                    imageHeight = capturedImageHeight,
-                    screenWidth = screenWidth.toInt(),
-                    screenHeight = screenHeight.toInt()
-                )
-            }
-
-            // Button to resume camera
-            Button(
-                onClick = {
+            // Display the captured/imported image with text recognition
+            ImageWithTextRecognition(
+                bitmap = capturedBitmap!!,
+                textBoxes = capturedTextBoxes,
+                imageWidth = capturedImageWidth,
+                imageHeight = capturedImageHeight,
+                screenWidth = screenWidth.toInt(),
+                screenHeight = screenHeight.toInt(),
+                onResume = {
                     isCaptureMode = false
                     capturedTextBoxes = emptyList()
                     capturedImageUri = null
                     capturedBitmap = null
-                },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(16.dp)
-                    .zIndex(2f)
-            ) {
-                Text("Resume Camera")
-            }
+                }
+            )
         } else {
-            // Capture button
-            Button(
-                onClick = {
-                    takePhoto(
-                        context,
-                        imageCapture,
-                        cameraExecutor,
+            // Show camera controls
+            CameraControls(
+                onCapture = {
+                    captureImage(
+                        context = context,
+                        imageCapture = imageCapture,
+                        cameraExecutor = cameraExecutor,
                         onImageCaptured = { uri ->
                             capturedImageUri = uri
-                            // Process image for text recognition
-                            textAnalyzer.analyzeImage(uri) { fullText, textBoxes, width, height ->
+                            processImage(uri, textAnalyzer) { textBoxes, width, height ->
                                 capturedTextBoxes = textBoxes
                                 capturedImageWidth = width
                                 capturedImageHeight = height
                                 isCaptureMode = true
                             }
-                        },
-                        onError = { message ->
-                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                         }
                     )
                 },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(16.dp)
-            ) {
-                Text("Capture")
-            }
+                onImport = {
+                    imagePickerLauncher.launch("image/*")
+                },
+                modifier = Modifier.align(Alignment.BottomCenter) // This is the key fix
+            )
         }
     }
 }
