@@ -68,7 +68,7 @@ object OpenRouterClient {
                 3. **Word breakdown**: Key vocabulary with individual meanings
                 4. **Grammar notes**: Brief explanation of any notable grammar structures
                 
-                Format your response in Markdown for readability.
+                Format your response in Markdown for readability. Do not need to include the ```json or ```markdown at the beginning and end of the response.
             """.trimIndent()
 
             val body = JSONObject().apply {
