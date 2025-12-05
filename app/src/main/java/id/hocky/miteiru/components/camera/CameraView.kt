@@ -6,6 +6,7 @@ import android.widget.Toast
 import androidx.camera.core.Camera
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,6 +16,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import id.hocky.miteiru.utils.ChineseTextBox
@@ -27,6 +29,8 @@ import id.hocky.miteiru.utils.loadBitmapFromUri
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.Executors
+import kotlin.math.max
+import kotlin.math.min
 
 @Composable
 fun CameraView(modifier: Modifier = Modifier) {
@@ -42,6 +46,9 @@ fun CameraView(modifier: Modifier = Modifier) {
     // Focus indicator state
     var focusPoint by remember { mutableStateOf<Offset?>(null) }
 
+    // Zoom state
+    var zoomRatio by remember { mutableFloatStateOf(1f) }
+
     // Create a PreviewView with FIT_CENTER scale type
     val previewView = remember { createPreviewView(context) }
 
@@ -56,10 +63,9 @@ fun CameraView(modifier: Modifier = Modifier) {
     var capturedImageWidth by remember { mutableIntStateOf(0) }
     var capturedImageHeight by remember { mutableIntStateOf(0) }
 
-    // Get screen dimensions
-    val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp * LocalDensity.current.density
-    val screenHeight = configuration.screenHeightDp * LocalDensity.current.density
+    // Track actual preview view dimensions (not screen dimensions!)
+    var previewWidth by remember { mutableIntStateOf(0) }
+    var previewHeight by remember { mutableIntStateOf(0) }
 
     // Helper for processing the captured image
     val textAnalyzer = remember { ImageTextAnalyzer(context) }
@@ -103,9 +109,16 @@ fun CameraView(modifier: Modifier = Modifier) {
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-        // Always show camera preview with tap-to-focus
+        // Always show camera preview with tap-to-focus and pinch-to-zoom
         AndroidView(
             factory = { previewView },
+            update = { view ->
+                // Get actual preview dimensions after layout
+                view.post {
+                    previewWidth = view.width
+                    previewHeight = view.height
+                }
+            },
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(Unit) {
@@ -127,6 +140,24 @@ fun CameraView(modifier: Modifier = Modifier) {
                         }
                     }
                 }
+                .pointerInput(Unit) {
+                    detectTransformGestures { _, _, zoom, _ ->
+                        if (!isCaptureMode) {
+                            camera?.let { cam ->
+                                val currentZoom = cam.cameraInfo.zoomState.value?.zoomRatio ?: 1f
+                                val minZoom = cam.cameraInfo.zoomState.value?.minZoomRatio ?: 1f
+                                val maxZoom = cam.cameraInfo.zoomState.value?.maxZoomRatio ?: 10f
+                                
+                                // Calculate new zoom ratio
+                                val newZoom = (currentZoom * zoom).coerceIn(minZoom, maxZoom)
+                                zoomRatio = newZoom
+                                
+                                // Apply zoom
+                                cam.cameraControl.setZoomRatio(newZoom)
+                            }
+                        }
+                    }
+                }
         )
 
         // Show focus indicator when tapped
@@ -134,15 +165,26 @@ fun CameraView(modifier: Modifier = Modifier) {
             FocusIndicator(point)
         }
 
+        // Show zoom indicator
+        if (!isCaptureMode) {
+            ZoomIndicator(
+                zoomRatio = zoomRatio,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 32.dp)
+            )
+        }
+
         if (isCaptureMode && capturedBitmap != null) {
             // Display the captured/imported image with text recognition
+            // Use the displayed bitmap dimensions (already orientation-correct) and actual preview size
             ImageWithTextRecognition(
                 bitmap = capturedBitmap!!,
                 textBoxes = capturedTextBoxes,
-                imageWidth = capturedImageWidth,
-                imageHeight = capturedImageHeight,
-                screenWidth = screenWidth.toInt(),
-                screenHeight = screenHeight.toInt(),
+                imageWidth = capturedBitmap!!.width,
+                imageHeight = capturedBitmap!!.height,
+                screenWidth = if (previewWidth > 0) previewWidth else 1080,
+                screenHeight = if (previewHeight > 0) previewHeight else 1920,
                 onResume = {
                     isCaptureMode = false
                     capturedTextBoxes = emptyList()
