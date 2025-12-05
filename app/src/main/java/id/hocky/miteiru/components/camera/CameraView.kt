@@ -1,6 +1,7 @@
 package id.hocky.miteiru.components.camera
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.widget.Toast
 import androidx.camera.core.Camera
@@ -13,12 +14,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
+import id.hocky.miteiru.components.history.HistoryScreen
+import id.hocky.miteiru.data.CaptureRepository
+import id.hocky.miteiru.data.entities.PreviousCapture
+import id.hocky.miteiru.data.entities.SmallCapture
+import id.hocky.miteiru.data.entities.TextBoxConverter
 import id.hocky.miteiru.utils.ChineseTextBox
 import id.hocky.miteiru.utils.ImageTextAnalyzer
 import id.hocky.miteiru.utils.createImageCapture
@@ -28,9 +33,8 @@ import id.hocky.miteiru.utils.initializeCamera
 import id.hocky.miteiru.utils.loadBitmapFromUri
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.io.File
 import java.util.concurrent.Executors
-import kotlin.math.max
-import kotlin.math.min
 
 @Composable
 fun CameraView(modifier: Modifier = Modifier) {
@@ -63,14 +67,23 @@ fun CameraView(modifier: Modifier = Modifier) {
     var capturedImageWidth by remember { mutableIntStateOf(0) }
     var capturedImageHeight by remember { mutableIntStateOf(0) }
 
+    // Selected text box for detail screen
+    var selectedTextBox by remember { mutableStateOf<ChineseTextBox?>(null) }
+
+    // Navigation states
+    var showHistoryScreen by remember { mutableStateOf(false) }
+    var showImportDialog by remember { mutableStateOf(false) }
+    var historyTab by remember { mutableIntStateOf(0) } // 0 = SmallCapture, 1 = PreviousCapture
+
     // Track actual preview view dimensions (not screen dimensions!)
     var previewWidth by remember { mutableIntStateOf(0) }
     var previewHeight by remember { mutableIntStateOf(0) }
 
     // Helper for processing the captured image
     val textAnalyzer = remember { ImageTextAnalyzer(context) }
+    val repository = remember { CaptureRepository(context) }
 
-    // Image picker
+    // Image picker for gallery
     val imagePickerLauncher = setupImagePicker(
         onImageSelected = { uri ->
             capturedImageUri = uri
@@ -82,6 +95,62 @@ fun CameraView(modifier: Modifier = Modifier) {
             }
         }
     )
+
+    // Function to load a SmallCapture
+    fun loadSmallCapture(capture: SmallCapture) {
+        coroutineScope.launch {
+            try {
+                val file = File(capture.imagePath)
+                if (file.exists()) {
+                    capturedBitmap = BitmapFactory.decodeFile(file.absolutePath)
+                    capturedImageUri = file.toUri()
+                    // For SmallCapture, we show just the cropped image with its text
+                    val rect = android.graphics.Rect(0, 0, capturedBitmap!!.width, capturedBitmap!!.height)
+                    capturedTextBoxes = listOf(
+                        ChineseTextBox(
+                            text = capture.text,
+                            language = capture.language,
+                            boundingBox = rect,
+                            rotation = 0,
+                            imageUri = capturedImageUri
+                        )
+                    )
+                    capturedImageWidth = capturedBitmap!!.width
+                    capturedImageHeight = capturedBitmap!!.height
+                    isCaptureMode = true
+                    showHistoryScreen = false
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "Failed to load capture", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    // Function to load a PreviousCapture
+    fun loadPreviousCapture(capture: PreviousCapture) {
+        coroutineScope.launch {
+            try {
+                val file = File(capture.imagePath)
+                if (file.exists()) {
+                    capturedBitmap = BitmapFactory.decodeFile(file.absolutePath)
+                    capturedImageUri = file.toUri()
+
+                    // Convert stored text boxes back to ChineseTextBox
+                    val converter = TextBoxConverter()
+                    val storedBoxes = converter.toTextBoxList(capture.textBoxesJson)
+                    capturedTextBoxes = storedBoxes.map { info ->
+                        repository.textBoxInfoToChineseTextBox(info, capturedImageUri)
+                    }
+                    capturedImageWidth = capturedBitmap!!.width
+                    capturedImageHeight = capturedBitmap!!.height
+                    isCaptureMode = true
+                    showHistoryScreen = false
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "Failed to load capture", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     // Load bitmap when URI changes
     LaunchedEffect(capturedImageUri) {
@@ -106,6 +175,43 @@ fun CameraView(modifier: Modifier = Modifier) {
         ) { boundCamera ->
             camera = boundCamera
         }
+    }
+
+    // Show history screen if requested
+    if (showHistoryScreen) {
+        HistoryScreen(
+            onBack = { showHistoryScreen = false },
+            onSmallCaptureSelected = { capture -> loadSmallCapture(capture) },
+            onPreviousCaptureSelected = { capture -> loadPreviousCapture(capture) }
+        )
+        return
+    }
+
+    // If a text box is selected, show the detail screen
+    if (selectedTextBox != null) {
+        TextDetailScreen(
+            textBox = selectedTextBox!!,
+            onBack = { selectedTextBox = null }
+        )
+        return
+    }
+
+    // Import dialog
+    if (showImportDialog) {
+        ImportOptionsDialog(
+            onDismiss = { showImportDialog = false },
+            onGallerySelected = {
+                imagePickerLauncher.launch("image/*")
+            },
+            onSmallCaptureSelected = {
+                historyTab = 0
+                showHistoryScreen = true
+            },
+            onPreviousCaptureSelected = {
+                historyTab = 1
+                showHistoryScreen = true
+            }
+        )
     }
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -176,8 +282,8 @@ fun CameraView(modifier: Modifier = Modifier) {
         }
 
         if (isCaptureMode && capturedBitmap != null) {
-            // Display the captured/imported image with text recognition
-            // Use the displayed bitmap dimensions (already orientation-correct) and actual preview size
+            // Show image with text recognition boxes
+            // Clicking a box opens the detail screen
             ImageWithTextRecognition(
                 bitmap = capturedBitmap!!,
                 textBoxes = capturedTextBoxes,
@@ -190,6 +296,9 @@ fun CameraView(modifier: Modifier = Modifier) {
                     capturedTextBoxes = emptyList()
                     capturedImageUri = null
                     capturedBitmap = null
+                },
+                onTextBoxClick = { textBox ->
+                    selectedTextBox = textBox
                 }
             )
         } else {
@@ -212,9 +321,9 @@ fun CameraView(modifier: Modifier = Modifier) {
                     )
                 },
                 onImport = {
-                    imagePickerLauncher.launch("image/*")
+                    showImportDialog = true
                 },
-                modifier = Modifier.align(Alignment.BottomCenter) // This is the key fix
+                modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
     }

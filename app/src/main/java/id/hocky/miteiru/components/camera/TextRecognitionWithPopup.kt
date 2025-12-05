@@ -1,10 +1,7 @@
 package id.hocky.miteiru.components.camera
 
 import androidx.compose.runtime.*
-import id.hocky.miteiru.components.textBoxPopUp.TextBoxPopUp
 import id.hocky.miteiru.utils.ChineseTextBox
-
-
 
 @Composable
 fun TextRecognitionWithPopup(
@@ -12,10 +9,9 @@ fun TextRecognitionWithPopup(
     imageWidth: Int,
     imageHeight: Int,
     screenWidth: Int,
-    screenHeight: Int
+    screenHeight: Int,
+    onTextBoxClick: (ChineseTextBox) -> Unit = {}
 ) {
-    var showPopup by remember { mutableStateOf(false) }
-
     // Draw the recognition box
     TextRecognitionBox(
         textBox = textBox,
@@ -23,14 +19,6 @@ fun TextRecognitionWithPopup(
         imageHeight = imageHeight,
         screenWidth = screenWidth,
         screenHeight = screenHeight,
-        onClick = { showPopup = true }
+        onClick = { onTextBoxClick(textBox) }
     )
-
-    // Show popup when clicked
-    if (showPopup) {
-        TextBoxPopUp(
-            textBox = textBox,
-            onDismiss = { showPopup = false }
-        )
-    }
 }
